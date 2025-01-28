@@ -25,38 +25,42 @@ export class DocumentsService {
   async createSignatureRequest(data: any) {
     try {
       const { templateId, participants } = data;
-
-      const signers = participants.map((participant) => ({
-        role: participant.role,
+  
+      // Map participants to signers with signing order
+      const signers = participants.map((participant, index) => ({
+        role: participant.role, // SELLER or BUYER
         email_address: participant.email.trim(),
         name: participant.name.trim(),
+        order: index + 1, // Signing order: 1 = SELLER, 2 = BUYER
       }));
-
+  
       const payload = {
         template_id: templateId,
         subject: 'Rooftop air rights and purchase agreement',
         message: 'Glad we could come to an agreement.',
         signingOptions: { draw: true, type: true, upload: true, defaultType: 'draw' },
         signers,
-        ccs: [],
-        test_mode: 1,
+        ccs: [], // Add CC emails if needed
+        test_mode: 1, // Set to 1 for test mode
       };
 
+      console.log("final payload" , payload)
+  
       const response = await axios.post(
         `${this.DROPBOX_SIGN_API_URL}/signature_request/send_with_template`,
         payload,
         { headers: { ...this.getAuthHeaders() } },
       );
-
+  
       const signatureRequestId = response.data.signature_request.signature_request_id;
-
+  
       const newDocument = this.documentRepository.create({
         templateId,
         participants,
         signatureRequestId,
         status: DocumentStatus.Pending,
       });
-
+  
       return this.documentRepository.save(newDocument);
     } catch (error) {
       console.error(
@@ -66,7 +70,7 @@ export class DocumentsService {
       throw new Error(`Failed to create signature request: ${error.message}`);
     }
   }
-
+  
   async pollSignatureRequestStatus() {
     try {
       const pendingDocuments = await this.documentRepository.find({
